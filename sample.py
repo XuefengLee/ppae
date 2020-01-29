@@ -1,18 +1,13 @@
 import argparse
 import torch
 import os
-import torch.nn as nn
-import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
 from torchvision.datasets import CelebA
 from torchvision.transforms import transforms
 from torchvision.utils import save_image
-from torch.optim.lr_scheduler import StepLR
-from model import Encoder,Decoder
-from utils import plumGauss
+from model import cnn,mlp
 import pdb
 
 torch.manual_seed(123)
@@ -41,6 +36,7 @@ def tocuda(x):
     if opt.use_cuda:
         return x.cuda()
     return x
+
 
 
 celebTrans = transforms.Compose([

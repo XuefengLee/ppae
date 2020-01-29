@@ -5,142 +5,92 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
-from torch.utils.data import DataLoader
 from torch.autograd import Variable
-from torchvision.datasets import CelebA
-from torchvision.transforms import transforms
-from torchvision.utils import save_image
-from torch.optim.lr_scheduler import StepLR
-from model import Encoder,Decoder
-from utils import plumGauss
+from model import cnn, mlp
+from utils import plumGauss, test
+from utils_data import *
 import pdb
 
 torch.manual_seed(123)
 
-parser = argparse.ArgumentParser(description='PyTorch MNIST WAE-GAN')
+parser = argparse.ArgumentParser(description='Plum-pudding autoencoder')
 parser.add_argument('--dataroot', required=True, help='path to dataset')
-parser.add_argument('-batch_size', type=int, default=100, metavar='N', help='input batch size for training (default: 100)')
-parser.add_argument('-epochs', type=int, default=110, help='number of epochs to train (default: 100)')
+parser.add_argument('--save_dir', required=True, help='path to save dir')
+parser.add_argument('--batch_size', type=int, default=100, metavar='N', help='input batch size for training (default: 100)')
+parser.add_argument('-epochs', type=int, default=100, help='number of epochs to train (default: 100)')
 parser.add_argument('-lr', type=float, default=0.0001, help='learning rate (default: 0.0001)')
-parser.add_argument('-dim_h', type=int, default=128, help='hidden dimension (default: 128)')
+parser.add_argument('--dataset', choices=['cifar10', 'mnist', 'celeba'], type=str, help='choose dataset')
 parser.add_argument('-n_z', type=int, default=64, help='hidden dimension of z (default: 64)')
-parser.add_argument('-LAMBDA', type=float, default=10, help='regularization coef MMD term (default: 10)')
-parser.add_argument('-n_channel', type=int, default=1, help='input channels (default: 1)')
-parser.add_argument('-sigma', type=float, default=1, help='variance of hidden dimension (default: 1)')
+parser.add_argument('--ld', type=float, default=1, help='coefficient of plum pudding loss')
+parser.add_argument('--device', type=str,  default='0', help='cuda device')
+
 args = parser.parse_args()
 
+if not os.path.isdir(args.save_dir):
+    os.makedirs(args.save_dir)
+f = open(args.save_dir + "/args.txt", "w")
+f.write(str(args))
+f.close()
 
-celebTrans = transforms.Compose([
-    transforms.CenterCrop(140),
-    transforms.Resize(64),
-    transforms.ToTensor()
-])
-trainset = CelebA(root=args.dataroot,
-                 split='train',
-                 transform=celebTrans,
-                 download=True)
+device = torch.device("cuda:" + args.device)
 
-testset = CelebA(root=args.dataroot,
-                 split='test',
-                 transform=celebTrans,
-                 download=True)
+train_loader, test_loader = prepare_data(args.batch_size, args.dataset, args.dataroot)
 
-train_loader = DataLoader(dataset=trainset,
-                          batch_size=args.batch_size,
-                          shuffle=True)
+autoencoder = None
+if args.dataset == 'mnist':
+    autoencoder = cnn(z_dim=args.n_z,nc=1)
+elif args.dataset == 'celeba':
+    autoencoder = cnn(z_dim=args.n_z)
 
-test_loader = DataLoader(dataset=testset,
-                         batch_size=104,
-                         shuffle=False)
+autoencoder = autoencoder.to(device)
 
-
-encoder = Encoder(z_dim=64)
-decoder = Decoder(z_dim=64)
-
-criterion = nn.MSELoss()
-
-
+criterion = nn.MSELoss(size_average=True)
 
 # Optimizers
-en_optim = optim.Adam(encoder.parameters(), lr = args.lr)
-de_optim = optim.Adam(decoder.parameters(), lr = args.lr)
-
-
-en_scheduler = StepLR(en_optim, step_size=30, gamma=0.5)
-de_scheduler = StepLR(de_optim, step_size=30, gamma=0.5)
-
-
-if torch.cuda.is_available():
-    encoder = encoder.cuda()
-    decoder = decoder.cuda()
-
+optim = optim.Adam(autoencoder.parameters(), lr=args.lr)
 
 
 for epoch in range(args.epochs):
     step = 0
-
     for images, _ in tqdm(train_loader):
 
-        if torch.cuda.is_available():
-            images = images.cuda()
 
-        encoder.zero_grad()
-        decoder.zero_grad()
+        images = images.to(device)
 
-
-
-        # ======== Train Generator ======== #
-
+        optim.zero_grad()
 
         batch_size = images.size()[0]
 
+        z_real = autoencoder.encode(images)
+        x_recon = autoencoder.decode(z_real)
 
-        z_real = encoder(images)
-        x_recon = decoder(z_real)
         recon_loss = criterion(x_recon, images)
         loss_PP_real = plumGauss(z_real)
-        loss = recon_loss + loss_PP_real
-
+        loss = recon_loss + args.ld * loss_PP_real
 
         loss.backward()
-        en_optim.step()
-        de_optim.step()
-
-        step += 1
-
-        if (step + 1) % 300 == 0:
-            print(np.cov(z_real.detach().cpu().numpy()))
-
-            print("Epoch: [%d/%d], Step: [%d/%d], Reconstruction Loss: %.4f" %
-                  (epoch + 1, args.epochs, step + 1, len(train_loader), recon_loss.data.item()))
-
-    if (epoch + 1) % 1 == 0:
-        batch_size = 104
-        test_iter = iter(test_loader)
-        test_data = next(test_iter)
-
-        noise = torch.randn(batch_size, args.n_z).cuda()
-        samples = decoder(noise)
-        #.view(batch_size, 3, 64, 64)
-        reconst  = decoder(encoder(Variable(test_data[0]).cuda()))
-        reconst = reconst.cpu().view(batch_size, 3, 64, 64)
-
-        if not os.path.isdir('./data/reconst_images'):
-            os.makedirs('data/reconst_images')
-        if not os.path.isdir('./data/fake_images'):
-            os.makedirs('data/fake_images')
-
-        if not os.path.isdir('./data/saved_models'):
-            os.makedirs('./data/saved_models')
+        optim.step()
 
 
-        torch.save(encoder.state_dict(), './%s/encoder_epoch_%d.pth' % ('./data/saved_models', epoch))
-        torch.save(decoder.state_dict(), './%s/decoder_epoch_%d.pth' % ('./data/saved_models', epoch))
+        # step += 1
+        # if (step + 1) % 300 == 0:
+        #     # print(np.cov(z_real.detach().cpu().numpy()))
+        #
+        #     print("Epoch: [%d/%d], Step: [%d/%d], Reconstruction Loss: %.4f" %
+        #           (epoch + 1, args.epochs, step + 1, len(train_loader), recon_loss.data.item()))
+
+
+    # noise = torch.randn(batch_size, args.n_z).cuda()
+    # samples = autoencoder.decode(noise)
 
 
 
+    test(epoch, autoencoder,args.save_dir, test_loader, device, args.batch_size, criterion)
 
-        save_image(test_data[0].view(batch_size, 3, 64, 64), './data/reconst_images/wae_gan_input.png')
-        save_image(reconst.data, './data/reconst_images/wae_gan_images_%d.png' % (epoch + 1))
+    if not os.path.isdir(args.save_dir + '/saved_models'):
+        os.makedirs(args.save_dir + '/saved_models')
+    torch.save(autoencoder.state_dict(), '%s/autoencoder_epoch_%d.pth' % (args.save_dir + '/saved_models', epoch))
+    # save_image(samples.data, args.save_dir + '/fake_images/images_%d.png' % (epoch + 1))
 
-        save_image(samples.data, './data/fake_images/wae_gan_images_%d.png' % (epoch + 1))
+
+

@@ -1,7 +1,7 @@
 import torch
 import math, os, pdb
 from torchvision.utils import save_image
-
+import numpy as np
 
 def tocuda(x):
 
@@ -74,16 +74,20 @@ def test(epoch, model,save_dir,test_loader, device, batch_size,criterion):
             recon_batch = model.decode(z_real)
 
             # calculate mean and variance
-            mean = torch.norm(z_real, dim=1).pow(2).mean() / z_real.shape[1]
-            var = (torch.norm(z_real, dim=1) - z_real.shape[1]).pow(2).mean()/(2*z_real.shape[1])
+
 
             test_loss += criterion(recon_batch, data).item()
 
             if i == 0:
                 n = min(data.size(0), 8)
-                comparison = torch.cat([data[:n],recon_batch.view(batch_size, 1, 28, 28)[:n]])
-                # comparison = torch.cat([data[:n],recon_batch.view(batch_size, 3, 64, 64)[:n]])
+                # comparison = torch.cat([data[:n],recon_batch.view(batch_size, 1, 28, 28)[:n]])
+                comparison = torch.cat([data[:n],recon_batch.view(batch_size, 3, 64, 64)[:n]])
 
+                mean = torch.norm(z_real, dim=1).pow(2).mean() / z_real.shape[1]
+                var = (torch.norm(z_real, dim=1).pow(2) - mean*z_real.shape[1]).pow(2).mean() / (2 * z_real.shape[1])
+                cov = np.cov(z_real.detach().cpu().numpy())
+
+                print(cov)
                 save_image(comparison.cpu(), save_dir + '/images/reconstruction_' + str(epoch) + '.png', nrow=n)
 
 

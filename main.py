@@ -6,7 +6,7 @@ import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 from torch.autograd import Variable
-from model import cnn, mlp
+from model import celeba_model, mnist_model
 from utils import plumGauss, test
 from utils_data import *
 import pdb
@@ -38,9 +38,9 @@ train_loader, test_loader = prepare_data(args.batch_size, args.dataset, args.dat
 
 autoencoder = None
 if args.dataset == 'mnist':
-    autoencoder = cnn(z_dim=args.n_z,nc=1)
+    autoencoder = mnist_model(z_dim=args.n_z,nc=1)
 elif args.dataset == 'celeba':
-    autoencoder = cnn(z_dim=args.n_z)
+    autoencoder = celeba_model(z_dim=args.n_z, nc=3)
 
 autoencoder = autoencoder.to(device)
 
@@ -53,7 +53,6 @@ optim = optim.Adam(autoencoder.parameters(), lr=args.lr)
 for epoch in range(args.epochs):
     step = 0
     for images, _ in tqdm(train_loader):
-
 
         images = images.to(device)
 

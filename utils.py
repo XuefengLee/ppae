@@ -22,9 +22,8 @@ def plumGauss(z, alpha=0.45):
         result = torch.sum(xx)/(1+2*dim) - 0.5*torch.sum(torch.log(1+xy*2/(1+2*dim)))/(batch-1)
     else:
         xx2 = 2*xx*(torch.log(1+4*xx/dim)+1.3-math.log(5))/(1+1.6*xx/dim)
-
-    result = 0.55*torch.sum(xx)/(1+2*dim) + 0.45*torch.sum(xx2)/(1+2*dim) \
-           - 0.5*torch.sum(torch.log(1+xy*2/(1+2*dim)))/(batch-1)
+        result = 0.55*torch.sum(xx)/(1+2*dim) + 0.45*torch.sum(xx2)/(1+2*dim) \
+               - 0.5*torch.sum(torch.log(1+xy*2/(1+2*dim)))/(batch-1)
 
     return math.sqrt(1+2*dim)*result/batch
 
@@ -51,6 +50,7 @@ def test(epoch, model,save_dir,test_loader, device, batch_size, criterion, scale
             # if i == 0:
 
         full_z = scale*torch.cat(full_z,dim=0)
+
 
 
         n = min(data.size(0), 8)

@@ -12,6 +12,7 @@ from utils_data import *
 import math
 import pdb
 
+
 torch.manual_seed(123)
 
 parser = argparse.ArgumentParser(description='Plum-pudding autoencoder')
@@ -20,8 +21,8 @@ parser.add_argument('--save_dir', required=True, help='path to save dir')
 parser.add_argument('--batch_size', type=int, default=100, metavar='N', help='input batch size for training (default: 100)')
 parser.add_argument('-epochs', type=int, default=100, help='number of epochs to train (default: 100)')
 parser.add_argument('-lr', type=float, default=0.0001, help='learning rate (default: 0.0001)')
-parser.add_argument('-alpha', type=float, default=0.45, help='plumC or plumF (default: 0.45)')
-parser.add_argument('-scale', type=float, default=1.0, help='for z_real (default: 1.0)')
+parser.add_argument('--alpha', type=float, default=0.45, help='plumC or plumF (default: 0.45)')
+parser.add_argument('--scale', type=float, default=1.0, help='for z_real (default: 1.0)')
 parser.add_argument('--dataset', choices=['cifar10', 'mnist', 'celeba'], type=str, help='choose dataset')
 parser.add_argument('-n_z', type=int, default=64, help='hidden dimension of z (default: 64)')
 parser.add_argument('--ld', type=float, default=1, help='coefficient of plum pudding loss')

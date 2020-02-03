@@ -15,3 +15,5 @@ python3 main.py --dataroot /home/user/Desktop/datasets  --dataset celeba -n_z 64
 
 
 
+
+

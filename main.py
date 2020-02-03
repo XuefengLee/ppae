@@ -9,6 +9,7 @@ from torch.autograd import Variable
 from model import celeba_model, mnist_model
 from utils import plumGauss, test
 from utils_data import *
+import math
 import pdb
 
 torch.manual_seed(123)
@@ -64,6 +65,9 @@ for epoch in range(args.epochs):
         x_recon = autoencoder.decode(z_real)
 
         recon_loss = criterion(x_recon, images)
+
+        # 0.64
+
         loss_PP_real = plumGauss(z_real)
         loss = recon_loss + args.ld * loss_PP_real
 
@@ -83,8 +87,10 @@ for epoch in range(args.epochs):
     # samples = autoencoder.decode(noise)
 
 
+    mean_val = test(epoch, autoencoder, args.save_dir, test_loader, device, args.batch_size, criterion)
 
-    test(epoch, autoencoder,args.save_dir, test_loader, device, args.batch_size, criterion)
+
+    args.ld = args.ld * math.sqrt(mean_val)
 
     if not os.path.isdir(args.save_dir + '/saved_models'):
         os.makedirs(args.save_dir + '/saved_models')

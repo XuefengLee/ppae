@@ -3,40 +3,6 @@ import math, os, pdb
 from torchvision.utils import save_image
 import numpy as np
 
-def tocuda(x):
-
-    return x.cuda()
-
-def boolean_string(s):
-    if s not in {'False', 'True'}:
-        raise ValueError('Not a valid boolean string')
-    return s == 'True'
-
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        m.weight.data.normal_(0.0, 0.02)
-        if m.bias is not None:
-            m.bias.data.fill_(0)
-    elif classname.find('BatchNorm') != -1:
-        m.weight.data.normal_(1.0, 0.02)
-        m.bias.data.fill_(0)
-    elif classname.find('Linear') != -1:
-        m.bias.data.fill_(0)
-
-
-def log_sum_exp(input):
-    m, _ = torch.max(input, dim=1, keepdim=True)
-    input0 = input - m
-    m.squeeze()
-    return m + torch.log(torch.sum(torch.exp(input0), dim=1))
-
-
-def get_log_odds(raw_marginals):
-    marginals = torch.clamp(raw_marginals.mean(dim=0), 1e-7, 1 - 1e-7)
-    return torch.log(marginals / (1 - marginals))
-
-
 
 def plumGauss(z):
 
@@ -66,31 +32,43 @@ def test(epoch, model,save_dir,test_loader, device, batch_size,criterion):
     if not os.path.isdir(save_dir+'/images'):
         os.makedirs(save_dir+'/images')
 
+    full_z = []
     with torch.no_grad():
         for i, (data, _) in enumerate(test_loader):
             data = data.to(device)
 
             z_real = model.encode(data)
+
+            full_z.append(z_real)
+
             recon_batch = model.decode(z_real)
-
-            # calculate mean and variance
-
 
             test_loss += criterion(recon_batch, data).item()
 
-            if i == 0:
-                n = min(data.size(0), 8)
-                # comparison = torch.cat([data[:n],recon_batch.view(batch_size, 1, 28, 28)[:n]])
-                comparison = torch.cat([data[:n],recon_batch.view(batch_size, 3, 64, 64)[:n]])
+            # if i == 0:
 
-                mean = torch.norm(z_real, dim=1).pow(2).mean() / z_real.shape[1]
-                var = (torch.norm(z_real, dim=1).pow(2) - mean*z_real.shape[1]).pow(2).mean() / (2 * z_real.shape[1])
-                cov = np.cov(z_real.detach().cpu().numpy())
-
-                print(cov)
-                save_image(comparison.cpu(), save_dir + '/images/reconstruction_' + str(epoch) + '.png', nrow=n)
+        full_z = torch.cat(full_z,dim=0)
 
 
-    test_loss /= len(test_loader.dataset)
+        n = min(data.size(0), 8)
+        # comparison = torch.cat([data[:n],recon_batch.view(batch_size, 1, 28, 28)[:n]])
+        comparison = torch.cat([data[:n],recon_batch.view(data.shape[0], 3, 64, 64)[:n]])
+
+        E1 = torch.norm(full_z, dim=1).pow(2).mean()
+        E2 =(torch.norm(full_z, dim=1).pow(2) - E1).pow(2).mean()
+        mean = E1/full_z.shape[1]
+        var = E2/(2*E1)
+        #mean = torch.norm(z_real, dim=1).pow(2).mean() / z_real.shape[1]
+        #var = (torch.norm(z_real, dim=1).pow(2) - mean*z_real.shape[1]).pow(2).mean() / (2 * z_real.shape[1])
+        cov = np.cov(full_z.detach().cpu().numpy())
+
+        print(cov)
+        save_image(comparison.cpu(), save_dir + '/images/reconstruction_' + str(epoch) + '.png', nrow=n)
+
+
+    test_loss /= len(test_loader)
     print("Epoch: %d, Reconstruction Loss: %.4f, Mean: %.4f, Variance: %.4f" %
           (epoch + 1, test_loss, mean.data.item(), var.data.item()),flush=True)
+    model.train()
+
+    return mean.data.item()

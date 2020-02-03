@@ -1,30 +1,32 @@
 import torch
 import math
 
-def plumGauss(z):
+def plumGauss(z, alpha=0.45):
 
     x0 = torch.squeeze(z)
     x1 = x0.transpose(0,1)
 
-    batch_size = x0.size()[0]
-    size = x0.size()[1]  # vector length
+    batch = x0.size()[0]
+    dim = x0.size()[1]  # vector length
 
-    xx  = torch.bmm(x0.view(batch_size, 1, size),
-                    x0.view(batch_size, size, 1)).squeeze(2)
-    xx0 = xx.expand(batch_size,batch_size)
+    xx  = torch.bmm(x0.view(batch, 1, dim),
+                    x0.view(batch, dim, 1)).squeeze(2)
+    xx0 = xx.expand(batch,batch)
     xx1 = xx0.transpose(0,1)
 
     xy = xx0 + xx1 - 2*torch.matmul(x0,x1)
 
-    #result = torch.sum(xx)/size - 2*torch.sum(torch.log(1+xy/(2*size)))/batch_size
-    #return math.sqrt(size)*result/(batch_size-1)
+    if alpha == 0:
+        result = torch.sum(xx)/(1+2*dim) - 0.5*torch.sum(torch.log(1+xy*2/(1+2*dim)))/(batch-1)
+    else:
+        xx2 = 2*xx*(torch.log(1+4*xx/dim)+1.3-math.log(5))/(1+1.6*xx/dim)
 
-    result = 4*torch.sum(xx/(1+torch.log(1+0.177*xx/size)))/(3*(0.5+2*size)) \
-             - torch.sum(torch.log(1+xy/(0.5+2*size)))/(batch_size-1)
+        result = 0.55*torch.sum(xx)/(1+2*dim) + 0.45*torch.sum(xx2)/(1+2*dim) \
+               - 0.5*torch.sum(torch.log(1+xy*2/(1+2*dim)))/(batch-1)
 
-    return math.sqrt(0.5+2*size)*result/batch_size
+    return math.sqrt(1+2*dim)*result/batch
 
 # test to see that it works
-z = torch.FloatTensor([[1,1,-1,1],[1,-1,1,1],[-1,-1,1,1]])
-loss = plumGauss(z)
-print(loss)
+#z = torch.FloatTensor([[1,1,-1,1],[1,-1,1,1],[-1,-1,1,1]])
+#loss = plumGauss(z)
+#print(loss)

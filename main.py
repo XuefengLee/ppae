@@ -20,10 +20,14 @@ parser.add_argument('--save_dir', required=True, help='path to save dir')
 parser.add_argument('--batch_size', type=int, default=100, metavar='N', help='input batch size for training (default: 100)')
 parser.add_argument('-epochs', type=int, default=100, help='number of epochs to train (default: 100)')
 parser.add_argument('-lr', type=float, default=0.0001, help='learning rate (default: 0.0001)')
+parser.add_argument('-alpha', type=float, default=0.45, help='plumC or plumF (default: 0.45)')
+parser.add_argument('-scale', type=float, default=1.0, help='for z_real (default: 1.0)')
 parser.add_argument('--dataset', choices=['cifar10', 'mnist', 'celeba'], type=str, help='choose dataset')
 parser.add_argument('-n_z', type=int, default=64, help='hidden dimension of z (default: 64)')
 parser.add_argument('--ld', type=float, default=1, help='coefficient of plum pudding loss')
 parser.add_argument('--device', type=str,  default='0', help='cuda device')
+parser.add_argument('--adaptive', action='store_true')
+
 
 args = parser.parse_args()
 
@@ -66,9 +70,7 @@ for epoch in range(args.epochs):
 
         recon_loss = criterion(x_recon, images)
 
-        # 0.64
-
-        loss_PP_real = plumGauss(z_real)
+        loss_PP_real = plumGauss(args.scale*z_real,args.alpha)
         loss = recon_loss + args.ld * loss_PP_real
 
         loss.backward()
@@ -87,10 +89,10 @@ for epoch in range(args.epochs):
     # samples = autoencoder.decode(noise)
 
 
-    mean_val = test(epoch, autoencoder, args.save_dir, test_loader, device, args.batch_size, criterion)
+    mean_val = test(epoch, autoencoder, args.save_dir, test_loader, device, args.batch_size, criterion, scale)
 
-
-    args.ld = args.ld * math.sqrt(mean_val)
+    if args.adaptive:
+        args.ld = args.ld * math.sqrt(mean_val)
 
     if not os.path.isdir(args.save_dir + '/saved_models'):
         os.makedirs(args.save_dir + '/saved_models')

@@ -6,8 +6,8 @@ import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 from torch.autograd import Variable
-from model import celeba_model, mnist_model
-from utils import plumGauss, test
+from model import celeba_model, mnist_model, vae_model
+from utils import plumGauss, test, vae_loss
 from utils_data import *
 import math
 import pdb
@@ -28,6 +28,8 @@ parser.add_argument('-n_z', type=int, default=64, help='hidden dimension of z (d
 parser.add_argument('--ld', type=float, default=1, help='coefficient of plum pudding loss')
 parser.add_argument('--device', type=str,  default='0', help='cuda device')
 parser.add_argument('--adaptive', action='store_true')
+parser.add_argument('--vae', action='store_true')
+
 
 
 args = parser.parse_args()
@@ -43,10 +45,14 @@ device = torch.device("cuda:" + args.device)
 train_loader, test_loader = prepare_data(args.batch_size, args.dataset, args.dataroot)
 
 autoencoder = None
-if args.dataset == 'mnist':
-    autoencoder = mnist_model(z_dim=args.n_z,nc=1)
-elif args.dataset == 'celeba':
-    autoencoder = celeba_model(z_dim=args.n_z, nc=3)
+
+if args.vae:
+    autoencoder = vae_model(z_dim=args.n_z, nc=3)
+else:
+    if args.dataset == 'mnist':
+        autoencoder = mnist_model(z_dim=args.n_z,nc=1)
+    elif args.dataset == 'celeba':
+        autoencoder = celeba_model(z_dim=args.n_z, nc=3)
 
 autoencoder = autoencoder.to(device)
 
@@ -66,17 +72,22 @@ for epoch in range(args.epochs):
 
         batch_size = images.size()[0]
 
-        z_real = autoencoder.encode(images)
-        x_recon = autoencoder.decode(z_real)
+        if args.vae:
+            recon_batch, mu, logvar = autoencoder(images)
+            loss = vae_loss(recon_batch, images, mu, logvar)
+        else:
+            z_real = autoencoder.encode(images)
+            x_recon = autoencoder.decode(z_real)
 
-        recon_loss = criterion(x_recon, images)
+            recon_loss = criterion(x_recon, images)
 
-        loss_PP_real = plumGauss(args.scale*z_real,args.alpha)
-        loss = recon_loss + args.ld * loss_PP_real
+            loss_PP_real = plumGauss(args.scale*z_real,args.alpha)
+            loss = recon_loss + args.ld * loss_PP_real
 
         loss.backward()
         optim.step()
 
+    print("recon loss: %.4f" % loss.data.item(),flush=True)
 
         # step += 1
         # if (step + 1) % 300 == 0:
@@ -89,11 +100,10 @@ for epoch in range(args.epochs):
     # noise = torch.randn(batch_size, args.n_z).cuda()
     # samples = autoencoder.decode(noise)
 
+    # mean_val = test(epoch, autoencoder, args.save_dir, test_loader, device, args.batch_size, criterion, args.scale)
 
-    mean_val = test(epoch, autoencoder, args.save_dir, test_loader, device, args.batch_size, criterion, scale)
-
-    if args.adaptive:
-        args.ld = args.ld * math.sqrt(mean_val)
+    # if args.adaptive:
+    #     args.ld = args.ld * math.sqrt(mean_val)
 
     if not os.path.isdir(args.save_dir + '/saved_models'):
         os.makedirs(args.save_dir + '/saved_models')

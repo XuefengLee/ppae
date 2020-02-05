@@ -2,6 +2,7 @@ import torch
 import math, os, pdb
 from torchvision.utils import save_image
 import numpy as np
+from torch.nn import functional as F
 
 def plumGauss(z, alpha=0.45):
 
@@ -74,3 +75,15 @@ def test(epoch, model,save_dir,test_loader, device, batch_size, criterion, scale
     model.train()
 
     return mean.data.item()
+
+
+def vae_loss(recon_x, x, mu, logvar):
+    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 4096), reduction='mean')
+
+    # see Appendix B from VAE paper:
+    # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
+    # https://arxiv.org/abs/1312.6114
+    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+    KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+
+    return BCE + KLD

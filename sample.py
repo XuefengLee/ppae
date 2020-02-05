@@ -1,41 +1,32 @@
 import argparse
 import torch
-import os
+import os, math
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torchvision.datasets import CelebA
 from torchvision.transforms import transforms
 from torchvision.utils import save_image
-from model import cnn,mlp
+from model import celeba_model
 import pdb
 
 torch.manual_seed(123)
 
-batch_size = 100
-latent_size = 256
-cuda_device = "1"
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--use_cuda', type=bool, default=True)
-parser.add_argument('--model_path')
+parser.add_argument('--model_path', required=True, help='path to the model')
+parser.add_argument('--save_dir', required=True, help='path to save dir')
 parser.add_argument('--device', type=int,  default=0, help='cuda device')
 parser.add_argument('--test', type=bool, default=False)
-
 
 
 opt = parser.parse_args()
 
 
-cuda_device = opt.device
+device = opt.device
 
-os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_device)
 
-def tocuda(x):
-    if opt.use_cuda:
-        return x.cuda()
-    return x
 
 
 
@@ -73,21 +64,28 @@ if __name__ == "__main__":
 
     else:
 
-        decoder_state_dict = torch.load(opt.model_path)
-        decoder = Decoder()
-        decoder.load_state_dict(decoder_state_dict)
+        model_state_dict = torch.load(opt.model_path,map_location='cuda:' + str(device))
+        model = celeba_model()
+        model.load_state_dict(model_state_dict)
+
+        model = model.to(device)
+
+        norms = [8 - math.sqrt(2), 8 - math.sqrt(0.5), 8, 8 + math.sqrt(2), 8 + math.sqrt(0.5)]
+
+        for index, new_norm in enumerate(norms):
+
+            dir = opt.save_dir + '/samples/' + str(index)
+            if not os.path.isdir(dir):
+                os.makedirs(dir)
+            for i in range(10000):
+
+                noise = torch.randn(1, 64).cuda()
+                old_norm = torch.norm(noise, 1)
+                noise = noise * (new_norm / old_norm)
+
+                # noise = torch.randn(1, 64).cuda()
+                samples = model.decode(noise)
+                save_image(samples.data, dir +  '/images_%d.png' % (i))
+                print("%d images saved" %(i))
 
 
-
-
-
-        if torch.cuda.is_available():
-            decoder = decoder.cuda()
-
-        if not os.path.isdir('./data/samples_2'):
-            os.makedirs('./data/samples_2')
-        for i in range(10000):
-            noise = torch.randn(1, 64).cuda()
-            samples = decoder(noise)
-            save_image(samples.data, './data/samples_2/wae_gan_images_%d.png' % (i))
-            print("%d images saved" %(i))

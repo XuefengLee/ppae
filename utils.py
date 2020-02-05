@@ -64,7 +64,7 @@ def test(epoch, model,save_dir,test_loader, device, batch_size, criterion, scale
         var = E2/(2*E1)
         #mean = torch.norm(z_real, dim=1).pow(2).mean() / z_real.shape[1]
         #var = (torch.norm(z_real, dim=1).pow(2) - mean*z_real.shape[1]).pow(2).mean() / (2 * z_real.shape[1])
-        cov = np.cov(full_z.detach().cpu().numpy())
+        cov = np.cov(full_z.detach().cpu().numpy().T)
 
         print(cov)
         save_image(comparison.cpu(), save_dir + '/images/reconstruction_' + str(epoch) + '.png', nrow=n)
